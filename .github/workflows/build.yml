@@ -1,0 +1,148 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            rid: linux-x64
+            platform: linux/amd64
+            image: mcr.microsoft.com/dotnet/sdk:11.0-aot
+          - runner: ubuntu-24.04-arm
+            rid: linux-arm64
+            platform: linux/arm64
+            image: mcr.microsoft.com/dotnet/sdk:11.0-aot
+          - runner: ubuntu-24.04
+            rid: linux-musl-x64
+            platform: linux/amd64
+            image: mcr.microsoft.com/dotnet/sdk:11.0-alpine-aot
+          - runner: ubuntu-24.04-arm
+            rid: linux-musl-arm64
+            platform: linux/arm64
+            image: mcr.microsoft.com/dotnet/sdk:11.0-alpine-aot
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish Native AOT in .NET container
+        env:
+          RID: ${{ matrix.rid }}
+          PLATFORM: ${{ matrix.platform }}
+          SDK_IMAGE: ${{ matrix.image }}
+        run: |
+          docker run --rm --platform "$PLATFORM" \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/src" \
+            --workdir /src \
+            "$SDK_IMAGE" \
+            dotnet publish src/ReleaseSync.csproj -c Release -r "$RID" \
+              --self-contained true -o "/src/artifacts/$RID"
+          test -x "artifacts/$RID/ReleaseSync"
+          tar -czf "ReleaseSync-$RID.tar.gz" -C "artifacts/$RID" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReleaseSync-${{ matrix.rid }}
+          path: ReleaseSync-${{ matrix.rid }}.tar.gz
+          if-no-files-found: error
+
+  windows:
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            rid: win-x64
+          - runner: windows-11-vs2026-arm
+            rid: win-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 11.0.x
+
+      - name: Publish Native AOT
+        shell: pwsh
+        run: |
+          dotnet publish src/ReleaseSync.csproj -c Release -r ${{ matrix.rid }} `
+            --self-contained true -o artifacts/${{ matrix.rid }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path artifacts/${{ matrix.rid }}/ReleaseSync.exe)) { throw 'Missing executable' }
+          Compress-Archive -Path artifacts/${{ matrix.rid }}/* `
+            -DestinationPath ReleaseSync-${{ matrix.rid }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReleaseSync-${{ matrix.rid }}
+          path: ReleaseSync-${{ matrix.rid }}.zip
+          if-no-files-found: error
+
+  macos:
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            rid: osx-x64
+          - runner: macos-15
+            rid: osx-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 11.0.x
+
+      - name: Publish Native AOT
+        env:
+          RID: ${{ matrix.rid }}
+        run: |
+          dotnet publish src/ReleaseSync.csproj -c Release -r "$RID" \
+            --self-contained true -o "artifacts/$RID"
+          test -x "artifacts/$RID/ReleaseSync"
+          tar -czf "ReleaseSync-$RID.tar.gz" -C "artifacts/$RID" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReleaseSync-${{ matrix.rid }}
+          path: ReleaseSync-${{ matrix.rid }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ReleaseSync-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes

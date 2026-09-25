@@ -1,0 +1,5 @@
+# GitHub supports this runner, but actionlint 1.7.12 has not added its label yet.
+paths:
+  .github/workflows/build.yml:
+    ignore:
+      - 'label "windows-11-vs2026-arm" is unknown'

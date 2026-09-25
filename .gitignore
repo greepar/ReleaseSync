@@ -1,0 +1,12 @@
+bin/
+obj/
+src/bin/
+src/obj/
+.idea/
+.playwright-mcp/
+downloads/
+release/
+artifacts/
+config.toml
+**/.releasesync-state.json
+**/.releasesync-*.download*

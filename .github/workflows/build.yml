@@ -20,19 +20,19 @@ jobs:
           - runner: ubuntu-24.04
             rid: linux-x64
             platform: linux/amd64
-            image: mcr.microsoft.com/dotnet/sdk:11.0-aot
+            image: mcr.microsoft.com/dotnet/sdk:11.0.100-rc.2-aot
           - runner: ubuntu-24.04-arm
             rid: linux-arm64
             platform: linux/arm64
-            image: mcr.microsoft.com/dotnet/sdk:11.0-aot
+            image: mcr.microsoft.com/dotnet/sdk:11.0.100-rc.2-aot
           - runner: ubuntu-24.04
             rid: linux-musl-x64
             platform: linux/amd64
-            image: mcr.microsoft.com/dotnet/sdk:11.0-alpine-aot
+            image: mcr.microsoft.com/dotnet/sdk:11.0.100-rc.2-alpine3.24-aot
           - runner: ubuntu-24.04-arm
             rid: linux-musl-arm64
             platform: linux/arm64
-            image: mcr.microsoft.com/dotnet/sdk:11.0-alpine-aot
+            image: mcr.microsoft.com/dotnet/sdk:11.0.100-rc.2-alpine3.24-aot
     steps:
       - uses: actions/checkout@v4
 
@@ -74,7 +74,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 11.0.x
+          dotnet-version: 11.0.100-rc.2.26504.105
 
       - name: Publish Native AOT
         shell: pwsh
@@ -109,7 +109,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 11.0.x
+          dotnet-version: 11.0.100-rc.2.26504.105
 
       - name: Publish Native AOT
         env:
